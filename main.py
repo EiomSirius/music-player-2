@@ -22,7 +22,7 @@ for d in (TRACKS, THUMBS):
 
 YT_PROXY = os.environ.get("YT_PROXY", "socks5://85.208.48.210:1080")
 YT_EXTRACTOR_ARGS = "youtube:player_client=tv,web,mweb"
-CACHE_DIR = Path(os.environ.get("YT_CACHE", "/tmp/ytcache"))
+CACHE_DIR = Path(os.environ.get("YT_CACHE", "/app/music/.ytcache"))
 CACHE_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="Resonance Music Player", version="2.0")
