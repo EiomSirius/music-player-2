@@ -235,10 +235,15 @@ async def upload(files: List[UploadFile] = File(...)):
 # -------------------------------------------------------------------------
 #  API: YouTube
 # -------------------------------------------------------------------------
+COOKIES = Path(os.environ.get("YT_COOKIES", "/app/music/cookies.txt"))
+
 def _yt_cmd(extra_list):
-    return (["yt-dlp", "--proxy", YT_PROXY, "--js-runtimes", "node",
-             "--remote-components", "ejs:github",
-             "--extractor-args", YT_EXTRACTOR_ARGS] + extra_list)
+    cmd = ["yt-dlp", "--proxy", YT_PROXY, "--js-runtimes", "node",
+           "--remote-components", "ejs:github",
+           "--extractor-args", YT_EXTRACTOR_ARGS]
+    if COOKIES.exists():
+        cmd += ["--cookies", str(COOKIES)]
+    return cmd + extra_list
 
 
 def _yt_title(url: str):
