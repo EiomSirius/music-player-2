@@ -260,6 +260,21 @@
   .toast.ok{border-color:rgba(106,247,192,.4)}
   @keyframes toast-in{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
 
+  /* ---------- menú móvil (drawer) ---------- */
+  .menu-btn{display:none;background:none;border:none;color:var(--sub);cursor:pointer;
+    width:42px;height:42px;border-radius:12px;align-items:center;justify-content:center;flex-shrink:0}
+  .menu-btn:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+  .drawer-scrim{position:fixed;inset:0;background:rgba(5,5,9,.6);backdrop-filter:blur(4px);
+    z-index:92;opacity:0;pointer-events:none;transition:opacity .25s}
+  .drawer-scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;inset:0 auto 0 0;width:min(302px,84vw);background:var(--bg1);
+    border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:22px;
+    transform:translateX(-105%);transition:transform .28s cubic-bezier(.2,.8,.25,1);
+    z-index:95;box-shadow:var(--shadow)}
+  .drawer.open{transform:translateX(0)}
+  @media(max-width:880px){.menu-btn{display:flex}}
+  @media(min-width:881px){.drawer,.drawer-scrim{display:none}}
+
   /* ---------- respuesta móvil ---------- */
   @media(max-width:880px){
     .app{grid-template-columns:1fr;grid-template-rows:1fr 92px}
@@ -274,6 +289,12 @@
     .controls{max-width:none}
     .set{flex:0 0 auto}
     .sheet{bottom:calc(112px + env(safe-area-inset-bottom))}
+    .track{gap:10px;padding:10px}
+    .tk-art{width:42px;height:42px;border-radius:10px}
+    .src-badge{display:none}
+    .tk-dur{font-size:.65rem}
+    .tk-actions button{width:26px;height:26px;opacity:1;font-size:.8rem}
+    .tk-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2}
   }
   .fab{display:none;position:fixed;right:18px;bottom:112px;z-index:70;width:54px;height:54px;border-radius:50%
     ;border:none;background:var(--grad);color:#0a0a0f;font-size:1.7rem;cursor:pointer;box-shadow:var(--shadow2)}
@@ -314,6 +335,9 @@
   <!-- ---------- contenido principal ---------- -->
   <main class="main" id="main">
     <div class="topbar">
+      <button class="menu-btn" id="menuBtn" title="Menú">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
       <div class="search">
         <span class="s-ic">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -412,6 +436,22 @@
 
 <!-- overlays -->
 <div class="scrim" id="scrim"></div>
+<div class="drawer-scrim" id="dScrim"></div>
+
+<div class="drawer" id="drawer">
+  <div class="brand">
+    <div class="mark"><i>&#9835;</i></div>
+    <div><h1>Resonance</h1><small>tu música</small></div>
+  </div>
+  <nav class="nav">
+    <button class="on" data-filter="all"><span class="ic">&#9835;</span>Todas<span class="badge" id="nAllM">0</span></button>
+    <button data-filter="youtube"><span class="ic">&#9654;</span>YouTube<span class="badge" id="nYtM">0</span></button>
+    <button data-filter="upload"><span class="ic">&#8595;</span>Mías<span class="badge" id="nUpM">0</span></button>
+  </nav>
+  <div class="pl-label" style="margin-top:6px">Listas</div>
+  <div class="side-list" id="plSideM"></div>
+  <div class="foot"><span class="dot"></span>Biblioteca local · offline</div>
+</div>
 
 <div class="sheet" id="sheet">
   <button style="position:absolute;right:14px;top:12px;background:none;border:none;color:var(--dim);font-size:1.1rem;cursor:pointer" id="sheetX">&#10005;</button>
@@ -494,6 +534,11 @@ async function refresh(){
   $("nAll").textContent = meta.count;
   $("nYt").textContent = LIB.tracks.filter(t=>t.source==="youtube").length;
   $("nUp").textContent = LIB.tracks.filter(t=>t.source==="upload").length;
+  const nYt = LIB.tracks.filter(t=>t.source==="youtube").length;
+  const nUp = LIB.tracks.filter(t=>t.source==="upload").length;
+  $("nAllM").textContent = meta.count;
+  $("nYtM").textContent = nYt;
+  $("nUpM").textContent = nUp;
 }
 const thumbOf = t => t.thumb ? `/api/thumbs/${t.id}` : FALLBACK_ART(SRC_COLOR[t.source]||"#24242f");
 function setArt(el, t){
@@ -615,9 +660,26 @@ function renderSide(){
     el.innerHTML = `<span class="pl-ico">◉</span><span class="name">${esc(pl.name)}</span><span class="n">${count}</span>
       <button class="rm" title="Borrar lista">×</button>`;
     el.querySelector(".rm").onclick = async e => { e.stopPropagation(); await delPlaylist(pl); };
-    el.addEventListener("click", () => enterPlaylist(pl));
+    el.addEventListener("click", () => { enterPlaylist(pl); closeDrawer(); });
     side.appendChild(el);
   });
+  // espejo en el drawer móvil
+  const sideM = $("plSideM");
+  sideM.innerHTML = "";
+  if(!LIB.playlists.length){
+    sideM.innerHTML = `<div style="padding:8px 12px;font-size:.78rem;color:var(--dim)">Sin listas todavía</div>`;
+  } else {
+    LIB.playlists.forEach(pl => {
+      const el = document.createElement("div");
+      el.className = "pl-item" + (viewModes.playlist===pl.id ? " on" : "");
+      const count = pl.tracks.filter(t=>trackById(t)).length;
+      el.innerHTML = `<span class="pl-ico">◉</span><span class="name">${esc(pl.name)}</span><span class="n">${count}</span>
+        <button class="rm" title="Borrar lista">×</button>`;
+      el.querySelector(".rm").onclick = async e => { e.stopPropagation(); await delPlaylist(pl); };
+      el.addEventListener("click", () => { enterPlaylist(pl); closeDrawer(); });
+      sideM.appendChild(el);
+    });
+  }
 }
 
 function setNav(){
@@ -774,6 +836,12 @@ function showSheet(name){
   sheet.classList.add("show"); scrim.classList.add("show");
 }
 function hideSheet(){ sheet.classList.remove("show"); scrim.classList.remove("show"); }
+// ---- drawer móvil ----
+const drawer = $("drawer"), dScrim = $("dScrim");
+function closeDrawer(){ drawer.classList.remove("open"); dScrim.classList.remove("show"); }
+function openDrawer(){ drawer.classList.add("open"); dScrim.classList.add("show"); }
+$("menuBtn").onclick = openDrawer;
+dScrim.addEventListener("click", closeDrawer);
 $("sheetX").onclick = hideSheet;
 scrim.addEventListener("click", hideSheet);
 $("addBtn").onclick = () => showSheet("sheetMain");
@@ -798,7 +866,6 @@ $("ppBack").onclick = () => showSheet("sheetMain");
   });
 });
 function doUpload(files){
-  showSheet("sheetMain");
   const fd = new FormData();
   files.forEach(f => fd.append("files", f, f.webkitRelativePath||f.name));
   toast(`Subiendo ${files.length} archivo${files.length>1?"s":""}…`);
@@ -810,11 +877,11 @@ function doUpload(files){
     try{
       const r = JSON.parse(xhr.responseText);
       const n = (r.added||[]).length, errs = (r.errors||[]).length;
-      hideSheet();
       if(n) toast(`✅ ${n} añadida${n>1?"s":""}${errs?` · ${errs} con error`:""}`, false, "ok");
       else if(errs) toast("No se pudo procesar ningún archivo", true);
     }catch(e){ toast("Error al subir", true); }
     $("prog").style.display = "none";
+    hideSheet();
     await refresh(); render();
   };
   xhr.onerror = () => { hideSheet(); toast("Error de red al subir", true); $("prog").style.display="none"; };
@@ -910,6 +977,12 @@ document.querySelector(".nav").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   viewModes = {filter:(b.dataset.filter||"all"), playlist:null};
   setNav(); render(); $("main").scrollTop=0;
+});
+// navegación desde el drawer móvil
+document.querySelector(".drawer .nav").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  viewModes = {filter:(b.dataset.filter||"all"), playlist:null};
+  setNav(); render(); $("main").scrollTop=0; closeDrawer();
 });
 
 // ================== REORDENAR EN LISTA (drag & drop) ==================
